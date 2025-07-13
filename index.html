@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>방탈출: 폐쇄된 놀이공원의 비밀</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&family=Creepster&display=swap');
+
+        body {
+            background-color: #1a1a1a; color: #e0e0e0; font-family: 'Nanum Myeongjo', serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; margin: 0; padding: 20px 0;
+            background-image: url('https://www.transparenttextures.com/patterns/dark-denim-3.png');
+        }
+        .container {
+            width: 90%; max-width: 800px; border: 2px solid #555; border-radius: 15px;
+            padding: 30px; background-color: rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3); text-align: center; position: relative;
+        }
+        h1 {
+            font-family: 'Creepster', cursive; color: #b30000; font-size: 3em;
+            letter-spacing: 3px; margin-bottom: 20px;
+        }
+        #timer {
+            position: absolute; top: 25px; right: 35px; font-family: 'Creepster', cursive;
+            font-size: 2.5em; color: #ffc107; text-shadow: 0 0 5px #000;
+        }
+        #player-setup-container { display: block; }
+        #game-container { display: none; }
+        #setup-form label { display: block; margin: 15px 0 5px; font-size: 1.1em; font-weight: bold; }
+        #setup-form input { width: 80%; padding: 10px; border-radius: 5px; border: 1px solid #555; background-color: #333; color: #fff; font-size: 1em; }
+        #setup-form button {
+            background-color: #5c0000; color: #fff; border: 2px solid #b30000; padding: 15px 35px;
+            margin-top: 30px; font-family: 'Nanum Myeongjo', serif; font-size: 1.2em; font-weight: bold;
+            cursor: pointer; border-radius: 5px; transition: all 0.3s ease;
+        }
+        #setup-form button:hover { background-color: #b30000; }
+        #stage-image-container { position: relative; margin-bottom: 20px; line-height: 0; }
+        #stage-image-container img { max-width: 100%; height: auto; border-radius: 10px; border: 2px solid #444; }
+        .problem-area {
+            position: absolute; cursor: pointer; transition: background-color 0.2s ease-in-out;
+            border-radius: 5px;
+        }
+        .problem-area:hover { background-color: rgba(255, 0, 0, 0.4); border: 1px solid rgba(255, 100, 100, 0.7); }
+        #story-text { font-size: 1.2em; line-height: 1.6; min-height: 80px; white-space: pre-wrap; margin-bottom: 20px; }
+        #choices-container { border-top: 1px dashed #444; padding-top: 20px; }
+        #choices-container button {
+            background-color: #5c0000; color: #fff; border: 2px solid #b30000; padding: 15px 25px;
+            margin: 10px; font-family: 'Nanum Myeongjo', serif; font-size: 1em; font-weight: bold;
+            cursor: pointer; border-radius: 5px; transition: all 0.3s ease;
+        }
+        #choices-container button:hover { background-color: #b30000; box-shadow: 0 0 15px rgba(255, 100, 100, 0.7); }
+        #choices-container button:disabled { background-color: #333; color: #777; border-color: #555; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="player-setup-container" class="container">
+        <h1>Welcome to Happy Land</h1>
+        <form id="setup-form">
+            <label for="player-name">이름</label> <input type="text" id="player-name" required>
+            <label for="player-grade">학년</label> <input type="number" id="player-grade" required>
+            <label for="player-class">반</label> <input type="number" id="player-class" required>
+            <button type="submit">게임 시작</button>
+        </form>
+    </div>
+
+    <div id="game-container" class="container">
+        <div id="timer">00:00</div>
+        <h1>Happy Land</h1>
+        <div id="stage-image-container"></div>
+        <div id="story-text"></div>
+        <div id="choices-container"></div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const setupContainer = document.getElementById('player-setup-container'),
+              gameContainer = document.getElementById('game-container'),
+              setupForm = document.getElementById('setup-form'),
+              storyTextElement = document.getElementById('story-text'),
+              choicesContainerElement = document.getElementById('choices-container'),
+              stageImageContainer = document.getElementById('stage-image-container'),
+              timerElement = document.getElementById('timer');
+
+        // --- Game State ---
+        let player = { name: '', grade: '', classNum: '', state: {} };
+        let timerInterval = null, totalSeconds = 0;
+
+        // --- Game Data ---
+        const gameData = {
+            start: {
+                text: () => `${player.grade}학년 ${player.classNum}반 ${player.name} 학생과 친구들은 폐장 소식을 들은 '해피랜드'에 도착했다.\n'손님 여러분, 지금부터 저와 함께 진짜 놀이를 시작해볼까요?'`,
+                choices: [ { text: "주변을 살핀다", action: "beginGame" } ]
+            },
+            stage1: {
+                interactiveImage: {
+                    src: 'https://i.ibb.co/ZzB1hCF8/Whisk-930ce19f6b.jpg',
+                    problems: [
+                        { coords: { x: 4, y: 8, width: 22, height: 28 }, action: 'discoverMapNumber' },
+                        { coords: { x: 40, y: 60, width: 25, height: 15 }, action: 'discoverTicketNumber' },
+                        { coords: { x: 68, y: 8, width: 15, height: 25 }, action: 'discoverClockNumbers' },
+                        { coords: { x: 30, y: 40, width: 35, height: 15 }, action: 'solvePasswordQuiz' },
+                        { coords: { x: 75, y: 75, width: 20, height: 20 }, action: 'solveKeyQuiz' }
+                    ]
+                },
+                text: () => "--- 1단계: 사라진 목소리 ---\n\n이곳을 벗어나려면 두 개의 잠금장치를 풀어야 한다.\n사진 속에서 단서가 될 만한 곳을 찾아 클릭하세요.",
+                choices: [
+                    { text: "다음 구역으로 가는 문", action: "openStage2Door", requiredState: ["key_solved", "password_solved"] }
+                ]
+            },
+            stage2: {
+                interactiveImage: {
+                    src: 'https://i.ibb.co/v4Hjq3Kb/Whisk-storyboard6bc64617eeb947c1a6395820.jpg',
+                    problems: [
+                        { coords: { x: 5, y: 20, width: 40, height: 60 }, action: 'solveCarouselQuiz' },
+                        { coords: { x: 55, y: 15, width: 35, height: 70 }, action: 'solveHauntedHouseQuiz' }
+                    ]
+                },
+                text: () => "--- 2단계: 멈춰버린 멜로디와 비명 ---\n\n다음 구역으로 넘어가려면 이곳의 비밀을 모두 풀어야 한다.",
+                choices: [
+                    { text: "범퍼카 구역으로 이동", action: "openStage3Door", requiredState: ["carousel_quiz_solved", "haunted_house_quiz_solved"] }
+                ]
+            },
+            stage3: {
+                interactiveImage: {
+                    src: 'https://i.ibb.co/CsnPg2BL/Whisk-2f3da6cbe7.jpg',
+                    problems: [
+                        { coords: { x: 70, y: 25, width: 20, height: 30 }, action: 'solveClockQuiz3' },
+                        { coords: { x: 10, y: 55, width: 25, height: 30 }, action: 'solveBumperCarQuiz' }
+                    ]
+                },
+                text: () => "--- 3단계: 하늘에 닿으려는 욕망과 광기 ---\n\n범퍼카 구역에 도착했다. 기름 냄새와 낡은 고무 냄새가 진동한다.\n마지막 장소로 가기 위한 단서를 찾아야 한다.",
+                choices: [
+                    { text: "탈출!", action: "endGame", requiredState: ["clock_quiz_solved3", "key_found_stage3"] }
+                ]
+            }
+        };
+
+        // --- Timer Functions ---
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            totalSeconds = 0;
+            timerElement.innerText = '00:00';
+            timerInterval = setInterval(() => {
+                totalSeconds++;
+                let minutes = Math.floor(totalSeconds / 60);
+                let seconds = totalSeconds % 60;
+                timerElement.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }, 1000);
+        }
+        function stopTimer() { clearInterval(timerInterval); }
+
+        // --- Game Logic ---
+        setupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            player.name = document.getElementById('player-name').value;
+            player.grade = document.getElementById('player-grade').value;
+            player.classNum = document.getElementById('player-class').value;
+            setupContainer.style.display = 'none';
+            gameContainer.style.display = 'block';
+            showStage('start');
+        });
+
+        function showStage(stageName) {
+            const stage = gameData[stageName];
+            if (!stage) return;
+
+            stageImageContainer.innerHTML = '';
+            choicesContainerElement.innerHTML = '';
+            
+            if (stage.interactiveImage) {
+                const img = document.createElement('img');
+                img.src = stage.interactiveImage.src;
+                stageImageContainer.appendChild(img);
+
+                stage.interactiveImage.problems.forEach(p => {
+                    const area = document.createElement('div');
+                    area.className = 'problem-area';
+                    Object.assign(area.style, {
+                        left: `${p.coords.x}%`, top: `${p.coords.y}%`,
+                        width: `${p.coords.width}%`, height: `${p.coords.height}%`
+                    });
+                    area.onclick = () => handleAction(p.action);
+                    stageImageContainer.appendChild(area);
+                });
+            }
+
+            storyTextElement.innerText = stage.text();
+
+            if (stage.choices) {
+                stage.choices.forEach(choice => {
+                    const button = document.createElement('button');
+                    button.innerText = choice.text;
+                    button.onclick = () => handleAction(choice.action);
+                    
+                    if (choice.requiredState && Array.isArray(choice.requiredState)) {
+                        const allStatesMet = choice.requiredState.every(s => player.state[s]);
+                        if (!allStatesMet) button.disabled = true;
+                    }
+                    choicesContainerElement.appendChild(button);
+                });
+            }
+        }
+        
+        function handleAction(action) {
+            switch (action) {
+                case 'beginGame':
+                    startTimer();
+                    showStage('stage1');
+                    break;
+
+                // --- 1단계 퀴즈 (원래 버전) ---
+                case 'solveKeyQuiz':
+                    if (player.state.key_solved) { alert("이미 열쇠는 찾은 것 같다."); return; }
+                    const keyAnswer = prompt("어두운 구석에서 낡은 퀴즈 상자를 발견했다!\n\n[퀴즈] 이 놀이공원의 마스코트는 항상 웃고 있는 OOO이다. OOO은 무엇일까? (두 글자)");
+                    if (keyAnswer && keyAnswer.trim() === "광대") {
+                        alert("정답이다! 상자가 열리며 안에서 [녹슨 열쇠]를 얻었다는 느낌이 들었다.");
+                        player.state.key_solved = true;
+                        showStage('stage1');
+                    } else { alert("틀렸다. 상자는 꿈쩍도 하지 않는다."); }
+                    break;
+                case 'discoverMapNumber':
+                    alert("지도를 보니 '7번' 구역이 유독 낡아 보인다.");
+                    player.state.foundMapNum = true;
+                    break;
+                case 'discoverTicketNumber':
+                    alert("입장권의 가격은 '3'000원이다.");
+                    player.state.foundTicketNum = true;
+                    break;
+                case 'discoverClockNumbers':
+                    alert("매표소의 낡은 시계는 '9'시 '5'분에 멈춰있다.");
+                    player.state.foundClockNums = true;
+                    break;
+                case 'solvePasswordQuiz':
+                    if (player.state.password_solved) { alert("이미 비밀번호는 알아냈다."); return; }
+                    if (!player.state.foundMapNum || !player.state.foundTicketNum || !player.state.foundClockNums) {
+                        alert("카운터에 메모가 있지만, 아직 다른 단서들이 부족해 의미를 알 수 없다."); return;
+                    }
+                    alert("카운터에 먼지 쌓인 메모가 있다.\n[기억할 것: 지도 -> 가격 -> 시 -> 분]");
+                    const pwAnswer = prompt("지금까지 찾은 단서들을 조합하면, 문의 비밀번호는 무엇일까? (4자리 숫자)");
+                    if (pwAnswer === "7395") {
+                        alert("정답이다! 머릿속에 '7395'라는 비밀번호를 기억해두자.");
+                        player.state.password_solved = true;
+                        player.state.password = "7395";
+                        showStage('stage1');
+                    } else { alert("틀린 것 같다. 단서들을 다시 확인해보자."); }
+                    break;
+                case 'openStage2Door':
+                    const finalPwAnswer = prompt("문의 잠금장치에 비밀번호를 입력하세요.");
+                    if (finalPwAnswer === player.state.password) {
+                        alert("철컥! 소리와 함께 비밀번호 잠금장치가 풀렸다.\n이어서 [녹슨 열쇠]를 사용해 문을 열었다!");
+                        showStage('stage2');
+                    } else { alert("비밀번호가 틀렸다. 문이 열리지 않는다."); }
+                    break;
+
+                // --- 2단계 퀴즈 ---
+                case 'solveCarouselQuiz':
+                    if (player.state.carousel_quiz_solved) { alert("회전목마의 비밀은 이미 풀었다."); return; }
+                    const carouselAnswer = prompt("[퀴즈] 회전목마의 지붕은 무슨 색인가? (한글 두 글자)");
+                    if (carouselAnswer && carouselAnswer.trim() === "빨강") {
+                        alert("정답이다! 회전목마의 불빛이 한번 반짝이며 꺼졌다.");
+                        player.state.carousel_quiz_solved = true;
+                        showStage('stage2');
+                    } else { alert("틀렸다. 색깔이 잘 보이지 않는다."); }
+                    break;
+                case 'solveHauntedHouseQuiz':
+                    if (player.state.haunted_house_quiz_solved) { alert("귀신의 집의 비밀은 이미 풀었다."); return; }
+                    const hhAnswer = prompt("[퀴즈] 귀신의 집 간판(HAUNTED HOUSE)의 글씨는 무슨 색인가? (한글 두 글자)");
+                    if (hhAnswer && hhAnswer.trim() === "검정") {
+                        alert("정답이다! 귀신의 집 입구에서 스산한 바람이 한번 불고 멈췄다.");
+                        player.state.haunted_house_quiz_solved = true;
+                        showStage('stage2');
+                    } else { alert("틀렸다. 색깔이 잘 보이지 않는다."); }
+                    break;
+                case 'openStage3Door':
+                    alert("이곳의 비밀을 모두 풀었다. 다음 장소로 이동한다.");
+                    showStage('stage3');
+                    break;
+
+                // --- 3단계 퀴즈 ---
+                case 'solveClockQuiz3':
+                    if (player.state.clock_quiz_solved3) { alert("시계는 이미 확인했다."); return; }
+                    const clockAnswer3 = prompt("[퀴즈] 범퍼카의 개수는?\n(2 자리 숫자로 입력. 예: 19)");
+                    if (clockAnswer3 && clockAnswer3.trim() === "10") {
+                        alert("정답이다! '10'이라는 숫자를 기억해두자.");
+                        player.state.clock_quiz_solved3 = true;
+                        showStage('stage3');
+                    } else { alert("틀렸다. 다시 자세히 보자."); }
+                    break;
+                case 'solveBumperCarQuiz':
+                    if (player.state.key_found_stage3) { alert("이미 열쇠를 찾았다."); return; }
+                    const carAnswer = prompt("[퀴즈] 가장 뜨거운 열정을 상징하는 색깔의 자동차는 무엇일까? (한글 두 글자)");
+                    if (carAnswer && carAnswer.trim() === "빨간") {
+                        alert("정답이다! 빨간 범퍼카 좌석 밑에서 [분장실 열쇠]를 발견했다!");
+                        player.state.key_found_stage3 = true;
+                        showStage('stage3');
+                    } else { alert("틀렸다. 다른 색깔인 것 같다."); }
+                    break;
+                
+                // --- 게임 종료 ---
+                case 'endGame':
+                    stopTimer();
+                    const finalTime = timerElement.innerText;
+                    alert(`탈출 성공!\n\n축하합니다, ${player.name} 학생! 모든 퀴즈를 풀고 폐쇄된 놀이공원에서 탈출했습니다!\n\n- 최종 기록: ${finalTime} -`);
+                    window.location.reload();
+                    break;
+                case 'restart':
+                    window.location.reload();
+                    break;
+            }
+        }
+    </script>
+
+</body>
+</html>
